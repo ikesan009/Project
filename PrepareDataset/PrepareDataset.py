@@ -23,7 +23,7 @@ $python3
 >>>import PrepareDataset as PD
 >>>pd = PD.PrepareDataset()
 >>>pd.capture(video="Stations/2東京駅/MOV_0094.mp4",dir="Station_samples/2東京駅",fname="東京駅00",fps=1)
->>>pd.split_sumple(dir="Station_samples")
+>>>pd.split_sample(dir="Station_samples")
 >>>pd.make_samples(width=224,height=224)
 
 現在file=format=Trueにするとバグる模様.今後修正予定
@@ -34,7 +34,7 @@ $python3
                   2東京駅/(pingファイル群)
                   3柏駅/(pingファイル群)
                   4池袋駅/(pingファイル群)
-  sumples/test/0梅郷駅西口/(pingファイル群)
+  samples/test/0梅郷駅西口/(pingファイル群)
                1梅郷駅西口/(pingファイル群)
                2東京駅/(pingファイル群)
                3柏駅/(pingファイル群)
@@ -105,8 +105,8 @@ class PrepareDataset(object):
         self.detect_edge(dir,dir+'_edge',minVal,maxVal,file_format,sobel)
 
     #トレーニング/テストデータの分割
-    def split_sumple(self,dir,train_size=0.8,file_format=False,output_file="./sumples"):
-        sumples=[]
+    def split_sample(self,dir,train_size=0.8,file_format=False,output_file="./samples"):
+        samples=[]
         labels=[]
         files = os.listdir(dir)             #dir直下のディレクトリリストを取得
 
@@ -116,7 +116,7 @@ class PrepareDataset(object):
 
         for i in files:
             tmp=os.listdir(dir+"/"+i)
-            sumples+=list(map(lambda x:dir+"/"+i+"/"+x,tmp))#画像パスリストの取得
+            samples+=list(map(lambda x:dir+"/"+i+"/"+x,tmp))#画像パスリストの取得
             labels+=[i]*len(tmp)                            #ラベルリストの生成
 
             #トレーニング,テストデータ格納ディレクトリの生成
@@ -124,13 +124,13 @@ class PrepareDataset(object):
             self.make_dir(output_file+"/test/"+i,file_format)
 
         #トレーニング,テストデータを分割
-        Sumples_train, Sumples_eval, labels_train, labels_eval = train_test_split(sumples, labels, train_size=train_size)
+        samples_train, samples_eval, labels_train, labels_eval = train_test_split(samples, labels, train_size=train_size)
 
-        for i in range(len(Sumples_train)):#トレーニングデータのコピー
-            shutil.copy(Sumples_train[i], output_file+"/train/"+labels_train[i])
+        for i in range(len(samples_train)):#トレーニングデータのコピー
+            shutil.copy(samples_train[i], output_file+"/train/"+labels_train[i])
 
-        for i in range(len(Sumples_eval)):#テストデータのコピー
-            shutil.copy(Sumples_eval[i], output_file+"/test/"+labels_eval[i])
+        for i in range(len(samples_eval)):#テストデータのコピー
+            shutil.copy(samples_eval[i], output_file+"/test/"+labels_eval[i])
 
     def make_TFR(self,rec_file_name,img_data,width=0,height=0):#画像→TFRecord
         with tf.python_io.TFRecordWriter(rec_file_name) as writer:
@@ -167,9 +167,9 @@ class PrepareDataset(object):
         return img_data
 
     def make_samples(self,width=0,height=0):
-        img_data_train = self.image_lister("sumples/train")
+        img_data_train = self.image_lister("samples/train")
         record_file_train = './stations_train.tfrecords'
         self.make_TFR(record_file_train,img_data_train,width,height)
-        img_data_test = self.image_lister("sumples/test")
+        img_data_test = self.image_lister("samples/test")
         record_file_test = './stations_test.tfrecords'
         self.make_TFR(record_file_test,img_data_test,width,height)
