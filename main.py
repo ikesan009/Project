@@ -30,12 +30,12 @@ log_dir = 'logs/Project'
 #dirで指定されたパスが存在しない場合ディレクトリ作成
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-if format and os.path.exists(log_dir):
+if os.path.exists(log_dir):
     shutil.rmtree(log_dir)
 
 record=[["stations_train"]]
 img,lab=input.input(list(map(lambda x:x[0]+".tfrecords", record)),224,50)
-mod=model.model(img,4)
+mod=model.model(img,5)
 losses=loss.loss(mod,lab)
 global_step = tf.Variable(0, trainable=False)
 tn=train.train(total_loss=losses,global_step=global_step)
@@ -49,11 +49,7 @@ with tf.Session() as sess:
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
     for i in range(1000):
-        if i % 10 == 0:
-            summary = sess.run(merged)
-            writer.add_summary(summary, i)
-
-        elif i % 100 == 99:
+        if i % 100 == 0:
             print("\n\n\n"+str(i)+"\n\n\n")
             print(losses.eval())
             run_options  = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -67,7 +63,6 @@ with tf.Session() as sess:
             print("saving")
             saver.save(sess, os.getcwd()+"/model.ckpt", global_step=i)#モデル変数の保存
         _,losses_now=sess.run([tn,losses])
-
 
     coord.request_stop()
     coord.join(threads)
