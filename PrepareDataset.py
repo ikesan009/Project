@@ -53,7 +53,7 @@ $python3
 class PrepareDataset(object):
 
     #dirで指定されたパスが存在しない場合ディレクトリ作成
-    def make_dir(self,dir,format):
+    def make_dir(self,dir,format=False):
         if not os.path.exists(dir):
             os.makedirs(dir)
         if format and os.path.exists(dir):
