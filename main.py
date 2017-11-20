@@ -11,14 +11,16 @@ import shutil
                   2東京駅/(省略)
                   3柏駅/(省略)
                   4池袋駅/(省略)
+                  5運河駅西口/(省略)
+                  6運河駅東口/(省略)
   stations_train.tfrecords
   stations_test.tfrecords
-  cnn.py
+  main.py
 
 $python3
->>>import cnn
->>>c = cnn.cnn()
->>>c.train(n_class=5,size_image=56)
+>>>import main
+>>>m = main.main()
+>>>m.train(n_class=7,size_image=56,model='cnn1')
 
 実行後
 ~/logs/Project/train/(tfeventsファイル)
@@ -26,9 +28,9 @@ $python3
   Station_samples/(省略)
   stations_train.tfrecords
   stations_test.tfrecords
-  cnn.py
+  main.py
 
->>>c.test(n_class=5,size_image=56)
+>>>m.test(n_class=7,size_image=56,model='cnn1')
 
 実行後
 ~/logs/Project/train/(tfeventsファイル)
@@ -37,10 +39,10 @@ $python3
   Station_samples/(省略)
   stations_train.tfrecords
   stations_test.tfrecords
-  cnn.py
+  main.py
 """
 
-class cnn(object):
+class main(object):
 
     #tfrecordsファイルから画像データと対応するラベルを取得する
     def input(self,rec_name,IMAGE_SIZE,BATCH_SIZE):
@@ -120,8 +122,8 @@ class cnn(object):
             self.variable_summaries(fc)
             return fc
 
-    #モデルの定義
-    def model(self,images,n_class,keep_prob):
+    #CNNモデルの定義
+    def cnn1(self,images,n_class,keep_prob):
         #畳込み、プーリング1
         conv1 = self.l_conv(images,5,3,32,"conv1")
         pool1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool1')
@@ -144,8 +146,55 @@ class cnn(object):
             self.variable_summaries(fc2)
         return fc2
 
+    #VGGモデルの定義
+    def vgg1(self,images,n_class,keep_prob):
+        #畳込み1_1、畳込み1_2、プーリング1
+        conv1_1 = self.l_conv(images,3,3,64,"conv1_1")
+        conv1_2 = self.l_conv(conv1_1,3,64,64,"conv1_2")
+        pool1 = tf.nn.max_pool(conv1_2, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool1')
+        #畳込み2_1、畳込み2_2、プーリング2
+        conv2_1 = self.l_conv(pool1,3,64,128,"conv2_1")
+        conv2_2 = self.l_conv(conv2_1,3,128,128,"conv2_2")
+        pool2 = tf.nn.max_pool(conv2_2, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool2')
+        #畳込み3_1、畳込み3_2、畳込み3_3、プーリング3
+        conv3_1 = self.l_conv(pool2,3,128,256,"conv3_1")
+        conv3_2 = self.l_conv(conv3_1,3,256,256,"conv3_2")
+        conv3_3 = self.l_conv(conv3_2,3,256,256,"conv3_3")
+        pool3 = tf.nn.max_pool(conv3_3, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool3')
+        #畳込み4_1、畳込み4_2、畳込み4_3、プーリング4
+        conv4_1 = self.l_conv(pool3,3,256,512,"conv4_1")
+        conv4_2 = self.l_conv(conv4_1,3,512,512,"conv4_2")
+        conv4_3 = self.l_conv(conv4_2,3,512,512,"conv4_3")
+        pool4 = tf.nn.max_pool(conv4_3, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool4')
+
+        shape = pool4.get_shape().as_list()
+        dim = (shape[1]**2)*shape[3]
+        reshape = tf.reshape(pool4,[-1,dim])
+        #全結合層1
+        fc1 = self.l_full(reshape,dim,2048,"fc1")
+        #全結合層2
+        fc2 = self.l_full(fc1,2048,1024,"fc2")
+        #全結合層3
+        fc3 = self.l_full(fc2,1024,256,"fc3")
+        #ドロップアウト層
+        fc3_drop = tf.nn.dropout(fc3, keep_prob)
+        #全結合層4
+        with tf.variable_scope("fc4") as scope:
+            weights = tf.get_variable("weight", shape=[256, n_class], initializer=tf.truncated_normal_initializer(stddev=0.01))
+            biases = tf.get_variable("biases", shape=[n_class], initializer=tf.constant_initializer(0.0))
+            fc4 = tf.nn.bias_add(tf.matmul(fc3_drop, weights), biases, name=scope.name)
+            self.variable_summaries(fc4)
+        return fc4
+
+    #モデルの呼び出し
+    def model(self,images,n_class,keep_prob,model):
+        if model == 'cnn1':
+            return self.cnn1(images,n_class,keep_prob)
+        elif model == 'vgg1':
+            return self.vgg1(images,n_class,keep_prob)
+
     #トレーニングを行う
-    def train(self,n_class,size_image,log_dir='logs/Project/train'):
+    def train(self,n_class,size_image,model,log_dir='logs/Project/train'):
 
         sess = tf.InteractiveSession()
 
@@ -155,7 +204,7 @@ class cnn(object):
         y_ = tf.placeholder(tf.float32, shape=[None,n_class])
         keep_prob = tf.placeholder(tf.float32)
         #画像をモデルにかける
-        y_conv = self.model(x,n_class,keep_prob)
+        y_conv = self.model(x,n_class,keep_prob,model)
         #損失関数よりlossを取得
         with tf.name_scope('cross_entropy'):
             cross_entropy = tf.reduce_mean(
@@ -209,7 +258,7 @@ class cnn(object):
             writer.close()
 
     #テストを行う
-    def test(self,n_class,size_image,log_dir='logs/Project/test'):
+    def test(self,n_class,size_image,model,log_dir='logs/Project/test'):
 
         sess = tf.InteractiveSession()
         #画像とラベルとドロップアウト層のパラメータのプレイスホルダを生成
@@ -217,7 +266,7 @@ class cnn(object):
         y_ = tf.placeholder(tf.float32, shape=[None,n_class])
         keep_prob = tf.placeholder(tf.float32)
         #画像をモデルにかける
-        y_conv = self.model(x,n_class,keep_prob)
+        y_conv = self.model(x,n_class,keep_prob,model)
         #正答率の計算
         with tf.name_scope('accuracy'):
             correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
