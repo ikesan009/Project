@@ -247,13 +247,13 @@ class PrepareDataset(object):
                 # 回転の中心座標（画像の中心）
                 center = tuple([int(size[0]/2), int(size[1]/2)])
                 # 回転角度・拡大率
-                angle, scale = 10*i, 1.0
+                angle, scale = 5*i, 1+0.2*i
                 # 回転行列の計算
                 R = cv2.getRotationMatrix2D(center, angle, scale)
                 # アフィン変換
                 affine_img = cv2.warpAffine(img, R, size, flags=cv2.INTER_CUBIC)
                 # 結果を出力
-                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_.png'), affine_img)
+                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_afl.png'), affine_img)
         print('Done.')
 
     def affine_right(self,dir_img,dir_save,file_format=False,num=5):
@@ -268,13 +268,13 @@ class PrepareDataset(object):
                 # 回転の中心座標（画像の中心）
                 center = tuple([int(size[0]/2), int(size[1]/2)])
                 # 回転角度・拡大率
-                angle, scale = -10*i, 1.0
+                angle, scale = -5*i, 1+0.2*i
                 # 回転行列の計算
                 R = cv2.getRotationMatrix2D(center, angle, scale)
                 # アフィン変換
                 affine_img = cv2.warpAffine(img, R, size, flags=cv2.INTER_CUBIC)
                 # 結果を出力
-                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_.png'), affine_img)
+                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_afr.png'), affine_img)
         print('Done.')
 
     def enlarging(self,dir_img,dir_save,file_format=False,num=3):
@@ -287,7 +287,7 @@ class PrepareDataset(object):
                 # リサイズ
                 enlarging_img = cv2.resize(img, None, fx=1+0.05*i, fy=1+0.05*i, interpolation = cv2.INTER_LINEAR)
                 # 結果を出力
-                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_.png'), enlarging_img)
+                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_enl.png'), enlarging_img)
         print('Done.')
 
     def reducing(self,dir_img,dir_save,file_format=False,num=3):
@@ -300,5 +300,5 @@ class PrepareDataset(object):
                 # リサイズ
                 reducing_img = cv2.resize(img, None, fx=1-0.05*i, fy=1-0.05*i, interpolation = cv2.INTER_AREA)
                 # 結果を出力
-                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_.png'), reducing_img)
+                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_red.png'), reducing_img)
         print('Done.')
