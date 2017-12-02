@@ -1,6 +1,8 @@
 import tensorflow as tf
 import os
 import shutil
+import numpy as np
+from PIL import Image
 
 """
 実行例
@@ -65,7 +67,7 @@ class main(object):
         img = tf.cast(img, tf.float32)
         images, labels = tf.train.shuffle_batch(
             [img, tf.cast(features['label'], tf.int32)],
-            batch_size=BATCH_SIZE,capacity=500,min_after_dequeue=100
+            batch_size=BATCH_SIZE,capacity=22830 + 3 * 1,min_after_dequeue=22830
         )
         images = tf.image.resize_images(images, [IMAGE_SIZE, IMAGE_SIZE])
 
@@ -146,6 +148,43 @@ class main(object):
             self.variable_summaries(fc2)
         return fc2
 
+    #CNNモデルの定義
+    def cnn2(self,images,n_class,keep_prob):
+        #畳込み、プーリング1
+        conv1 = self.l_conv(images,5,3,64,"conv1")
+        pool1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool1')
+        #畳込み、プーリング2
+        conv2 = self.l_conv(pool1,5,64,128,"conv2")
+        pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool2')
+        #畳込み、プーリング3
+        conv3 = self.l_conv(pool2,5,128,256,"conv3")
+        pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool3')
+        #畳込み、プーリング4
+        conv4 = self.l_conv(pool3,5,256,512,"conv4")
+        pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool4')
+        #畳込み、プーリング5
+        conv5 = self.l_conv(pool4,5,512,1024,"conv5")
+        pool5 = tf.nn.max_pool(conv5, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool5')
+
+        shape = pool5.get_shape().as_list()
+        dim = (shape[1]**2)*shape[3]
+        reshape = tf.reshape(pool5,[-1,dim])
+        #全結合層1
+        fc1 = self.l_full(reshape,dim,2048,"fc1")
+        #全結合層2
+        fc2 = self.l_full(fc1,2048,1024,"fc2")
+        #全結合層3
+        fc3 = self.l_full(fc2,1024,512,"fc3")
+        #ドロップアウト層
+        fc3_drop = tf.nn.dropout(fc3, keep_prob)
+        #全結合層2
+        with tf.variable_scope("fc4") as scope:
+            weights = tf.get_variable("weight", shape=[512, n_class], initializer=tf.truncated_normal_initializer(stddev=0.01))
+            biases = tf.get_variable("biases", shape=[n_class], initializer=tf.constant_initializer(0.0))
+            fc4 = tf.nn.bias_add(tf.matmul(fc3_drop, weights), biases, name=scope.name)
+            self.variable_summaries(fc4)
+        return fc4
+
     #VGGモデルの定義
     def vgg1(self,images,n_class,keep_prob):
         #畳込み1_1、畳込み1_2、プーリング1
@@ -190,6 +229,8 @@ class main(object):
     def model(self,images,n_class,keep_prob,model):
         if model == 'cnn1':
             return self.cnn1(images,n_class,keep_prob)
+        elif model == 'cnn2':
+            return self.cnn2(images,n_class,keep_prob)
         elif model == 'vgg1':
             return self.vgg1(images,n_class,keep_prob)
 
@@ -306,3 +347,84 @@ class main(object):
                     x: batch[0], y_: batch[1], keep_prob: 1.0})))
             coord.request_stop()
             coord.join(threads)
+
+    def identification(self,n_class,size_image,img,model):
+
+        if not os.path.exists("save_files"):
+            print('Please train')
+        else:
+            sess = tf.InteractiveSession()
+            image = [np.array(Image.open(img).convert("RGB").resize((size_image, size_image)))]
+            #image = tf.cast(image,tf.float32)
+            #image = tf.reshape(image,tf.stack([1,size_image,size_image,3]))
+            #print(image)
+
+            x=tf.placeholder(tf.float32,shape=[None,size_image,size_image,3])
+            keep_prob=tf.placeholder(tf.float32)
+            y_conv=self.model(x,n_class,keep_prob,model)
+
+            y_=tf.nn.softmax(y_conv)
+
+            saver = tf.train.Saver()
+            with tf.Session() as sess:
+                sess.run(tf.global_variables_initializer())
+
+                #for i in range(200):
+                saver.restore(sess,"save_files/model.ckpt-20000")
+                result = np.round(sess.run(y_,feed_dict={x: image,keep_prob: 1.0}),3)
+                stationnum = sess.run(tf.argmax(result,1))
+                print('station {0} ,\n station number is {1}'.format(result,stationnum))
+
+    def stepidentification(self,n_class,size_image,img,model):
+
+        if not os.path.exists("save_files"):
+            print('Please train')
+        else:
+            sess = tf.InteractiveSession()
+            image = [np.array(Image.open(img).convert("RGB").resize((size_image, size_image)))]
+            #image = tf.cast(image,tf.float32)
+            #image = tf.reshape(image,tf.stack([1,size_image,size_image,3]))
+            #print(image)
+
+            x=tf.placeholder(tf.float32,shape=[None,size_image,size_image,3])
+            keep_prob=tf.placeholder(tf.float32)
+            y_conv=self.model(x,n_class,keep_prob,model)
+
+            y_=tf.nn.softmax(y_conv)
+
+            saver = tf.train.Saver()
+            with tf.Session() as sess:
+                sess.run(tf.global_variables_initializer())
+
+                for i in range(200):
+                    saver.restore(sess,"save_files/model.ckpt-"+str((i+1)*100))
+                    result = np.round(sess.run(y_,feed_dict={x: image,keep_prob: 1.0}),3)
+                    stationnum = sess.run(tf.argmax(result,1))
+                    print('step {0} {1} ,\n station number is {2}'.format(((i+1)*100),result,stationnum))
+
+    def listidentification(self,n_class,size_image,dir,model):
+        if not os.path.exists("save_files"):
+            print('Please train')
+        else:
+            if not os.path.exists(dir):
+                print('No directry')
+            else:
+                imglist=os.listdir(dir)
+                x=tf.placeholder(tf.float32,shape=[None,size_image,size_image,3])
+                keep_prob=tf.placeholder(tf.float32)
+                y_conv=self.model(x,n_class,keep_prob,model)
+
+                y_=tf.nn.softmax(y_conv)
+
+                saver = tf.train.Saver()
+                with tf.Session() as sess:
+                    sess.run(tf.global_variables_initializer())
+                    saver.restore(sess,"save_files/model.ckpt-20000")
+
+                    for img in imglist:
+
+                        image = [np.array(Image.open(dir+"/"+img).convert("RGB").resize((size_image, size_image)))]
+
+                        result = np.round(sess.run(y_,feed_dict={x: image,keep_prob: 1.0}),3)
+                        stationnum = sess.run(tf.argmax(result,1))
+                        print('station {0} ,\n station number is {1}'.format(result,stationnum))
