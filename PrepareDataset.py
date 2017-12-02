@@ -56,7 +56,7 @@ class PrepareDataset(object):
             shutil.rmtree(dir)
 
     #フレーム画像をキャプチャする
-    def capture(self,video,dir,fname,file_format=False,fps=30):
+    def capture(self,video,dir,fname,fps=30,width=224,height=224,file_format=False):
         self.make_dir(dir,file_format)
         cap = cv2.VideoCapture(video)
         v_fps = round(cap.get(cv2.CAP_PROP_FPS))
@@ -67,12 +67,23 @@ class PrepareDataset(object):
             flag,frame = cap.read()
             if (flag==False):
                 break
-            cv2.imwrite(os.path.join(dir,fname+str(i).zfill(5)+'.png'), frame)
+            resized_frame = cv2.resize(img,(width,height))
+            cv2.imwrite(os.path.join(dir,fname+str(i).zfill(5)+'.png'), resized_frame)
             i += 1
             cap.set(cv2.CAP_PROP_POS_FRAMES, interval*i)
 
         print('Done.')
         cap.release()
+
+    def resize_dir(self,dir_img,dir_save,width=224,height=224,file_format=False):
+        self.make_dir(dir_save,file_format)
+        list_img = sorted(glob.glob(dir_img+'/*'))
+        print('resizing images...')
+        for f_img in list_img:
+            img = cv2.imread(f_img)
+            img_resize = cv2.resize(img,(width,height))
+            cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+'.png'), img_resize)
+        print('Done.')
 
     def convert_to_grayscale(self,dir_img,dir_save,file_format=False):
         self.make_dir(dir,file_format)
@@ -153,12 +164,22 @@ class PrepareDataset(object):
                 }))
                 writer.write(record.SerializeToString())            #書き込み
 
+    def pull_num(self,str):
+        i=1
+        for i in range(len(str)):
+            try:
+                int(str[i])
+            except ValueError:
+                return(int(str[0:i]))
+            i+=1
+        return int(str)
+
     def image_lister(self,dir):
         img_data=[]
         files = os.listdir(dir)#dir直下のディレクトリ名リストを取得
         for i in files:
             img_files=os.listdir(dir+"/"+i)#ディレクトリ内部の画像名リストを取得
-            label=int(i[0])#ディレクトリ名をラベルに変換
+            label=pull_num(i)#ディレクトリ名をラベルに変換
             img_data+=list(map(lambda x:[dir+"/"+i+"/"+x,label],img_files))#リストに追加
         return img_data
 
@@ -173,11 +194,11 @@ class PrepareDataset(object):
     def inflation(self,dir,file_format=False):
         self.gamma_high(dir,dir+'_inf',file_format,1)
         self.gamma_low(dir,dir+'_inf',file_format,1)
-        self.blur(dir,dir+'_inf',file_format,1)
+        #self.blur(dir,dir+'_inf',file_format,1)
         self.affine_left(dir,dir+'_inf',file_format,2)
         self.affine_right(dir,dir+'_inf',file_format,2)
-        self.enlarging(dir,dir+'_inf',file_format,1)
-        self.reducing(dir,dir+'_inf',file_format,1)
+        #self.enlarging(dir,dir+'_inf',file_format,1)
+        #self.reducing(dir,dir+'_inf',file_format,1)
 
         files = os.listdir(dir+'_inf')
         for i in files:
@@ -193,7 +214,7 @@ class PrepareDataset(object):
             for i in range(1,num+1):
                 # ガンマ変換ルックアップテーブル
                 LUT = np.arange(256, dtype = 'uint8')
-                tmp = 1 + 0.1*i
+                tmp = 1 + 0.5*i
                 for j in range(256):
                     LUT[j] = 255 * pow(float(j)/255, 1.0/tmp)
                 # 代入
@@ -212,7 +233,7 @@ class PrepareDataset(object):
             for i in range(1,num+1):
                 # ガンマ変換ルックアップテーブル
                 LUT = np.arange(256, dtype = 'uint8')
-                tmp = 1 - 0.05*i
+                tmp = 1 - 0.5*i
                 for j in range(256):
                     LUT[j] = 255 * pow(float(j)/255, 1.0/tmp)
                 # 代入
