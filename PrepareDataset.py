@@ -139,28 +139,15 @@ class PrepareDataset(object):
         for i in range(len(samples_eval)):#テストデータのコピー
             shutil.copy(samples_eval[i], output_file+"/test/"+labels_eval[i])
 
-    def make_TFR(self,rec_file_name,img_data,width=0,height=0):#画像→TFRecord
+    def make_TFR(self,rec_file_name,img_data):#画像→TFRecord
         with tf.python_io.TFRecordWriter(rec_file_name) as writer:
             for img_name,label in img_data:
-                if width!=0:    #サイズ変更があれば変換を行う
-                    img = Image.open(img_name).convert("RGB").resize((width, height))
-                else:
-                    img =Image.open(img_name)
-                w, h = img.size
-
-                img_obj=np.array(img).tostring() #バイナリに変換
-
+                img_enc = img_name.encode('utf-8')
                 record = tf.train.Example(features=tf.train.Features(feature={ #画像のパラメータ設定
                     "label": tf.train.Feature(
                         int64_list=tf.train.Int64List(value=[label])),
                     "image": tf.train.Feature(
-                        bytes_list=tf.train.BytesList(value=[img_obj])),
-                    "height": tf.train.Feature(
-                        int64_list=tf.train.Int64List(value=[h])),
-                    "width": tf.train.Feature(
-                        int64_list=tf.train.Int64List(value=[w])),
-                    "depth": tf.train.Feature(
-                        int64_list=tf.train.Int64List(value=[3])),
+                        bytes_list=tf.train.BytesList(value=[img_enc])),
                 }))
                 writer.write(record.SerializeToString())            #書き込み
 
@@ -178,18 +165,18 @@ class PrepareDataset(object):
         img_data=[]
         files = os.listdir(dir)#dir直下のディレクトリ名リストを取得
         for i in files:
-            img_files=os.listdir(dir+"/"+i)#ディレクトリ内部の画像名リストを取得
-            label=pull_num(i)#ディレクトリ名をラベルに変換
-            img_data+=list(map(lambda x:[dir+"/"+i+"/"+x,label],img_files))#リストに追加
+            img_files = os.listdir(dir+"/"+i)#ディレクトリ内部の画像名リストを取得
+            label = self.pull_num(i)#ディレクトリ名をラベルに変換
+            img_data += list(map(lambda x:[dir+"/"+i+"/"+x,label],img_files))#リストに追加
         return img_data
 
     def make_samples(self,width=0,height=0):
         img_data_train = self.image_lister("samples/train")
         record_file_train = './stations_train.tfrecords'
-        self.make_TFR(record_file_train,img_data_train,width,height)
+        self.make_TFR(record_file_train,img_data_train)
         img_data_test = self.image_lister("samples/test")
         record_file_test = './stations_test.tfrecords'
-        self.make_TFR(record_file_test,img_data_test,width,height)
+        self.make_TFR(record_file_test,img_data_test)
 
     def inflation(self,dir,file_format=False):
         self.gamma_high(dir,dir+'_inf',file_format,1)
