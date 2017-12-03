@@ -57,19 +57,17 @@ class main(object):
             features={
                 "label": tf.FixedLenFeature([], tf.int64),
                 "image": tf.FixedLenFeature([], tf.string),
-                "height": tf.FixedLenFeature([], tf.int64),
-                "width": tf.FixedLenFeature([], tf.int64),
-                "depth": tf.FixedLenFeature([], tf.int64),
             })
-        #画像の読み込み
-        img = tf.reshape(tf.decode_raw(features["image"], tf.uint8),
-                                   tf.stack([IMAGE_SIZE, IMAGE_SIZE, 3]))
-        img = tf.cast(img, tf.float32)
-        images, labels = tf.train.shuffle_batch(
-            [img, tf.cast(features['label'], tf.int32)],
-            batch_size=BATCH_SIZE,capacity=22830 + 3 * 1,min_after_dequeue=22830
+        img_path, labels = tf.train.shuffle_batch(
+            [features['image'], tf.cast(features['label'], tf.int32)],
+            batch_size=BATCH_SIZE,capacity=22830+3*BATCH_SIZE,min_after_dequeue=22830
         )
-        images = tf.image.resize_images(images, [IMAGE_SIZE, IMAGE_SIZE])
+        def image_from_path(path):
+            png_bytes = tf.read_file(path)
+            image = tf.image.decode_png(png_bytes, channels=3)
+            image.set_shape([IMAGE_SIZE,IMAGE_SIZE,3])
+            return image
+        images = tf.map_fn(image_from_path,img_path,dtype='uint8')
 
         return images,labels
 
