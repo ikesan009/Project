@@ -4,6 +4,7 @@ import cv2
 import glob
 import shutil
 import numpy as np
+import random
 import tensorflow as tf
 from PIL import Image
 from sklearn.model_selection import train_test_split
@@ -179,53 +180,55 @@ class PrepareDataset(object):
         self.make_TFR(record_file_test,img_data_test)
 
     def inflation(self,dir,file_format=False):
-        self.gamma_high(dir,dir+'_inf',file_format,1)
-        self.gamma_low(dir,dir+'_inf',file_format,1)
+        self.crop(dir,dir,file_format)
+        self.gamma(dir,dir,file_format)
         #self.blur(dir,dir+'_inf',file_format,1)
-        self.affine_left(dir,dir+'_inf',file_format,2)
-        self.affine_right(dir,dir+'_inf',file_format,2)
+        self.affine(dir,dir,file_format,2)
         #self.enlarging(dir,dir+'_inf',file_format,1)
         #self.reducing(dir,dir+'_inf',file_format,1)
 
-        files = os.listdir(dir+'_inf')
-        for i in files:
-            shutil.move(dir+'_inf/'+str(i), dir)
-        shutil.rmtree(dir+'_inf')
+        #files = os.listdir(dir+'_inf')
+        #for i in files:
+        #    shutil.move(dir+'_inf/'+str(i), dir)
+        #shutil.rmtree(dir+'_inf')
 
-    def gamma_high(self,dir_img,dir_save,file_format=False,num=5):
+    def crop(self,dir_img,dir_save,file_format=False,num=3,rate=0.9):
         self.make_dir(dir_save,file_format)
         list_img = sorted(glob.glob(dir_img+'/*'))
-        print('running gamma_high...')
+        print('running crop...')
+        for f_img in list_img:
+            img = cv2.imread(f_img)
+            height,width=img.shape[0:2]
+            for i in range(1,num+1):
+                hs=random.randint(0,round(height*(1-rate)))
+                ws=random.randint(0,round(width*(1-rate)))
+                reducing_img = img[hs:hs+round(height*rate),ws:ws+round(width*rate)]
+                # 結果を出力
+                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_red.png'), reducing_img)
+        print('Done.')
+
+    def gamma(self,dir_img,dir_save,file_format=False,num=5,lower=0.5,upper=2.0):
+        # self.make_dir(dir_save)
+        list_img = sorted(glob.glob(dir_img+'/*'))
+        print('running gamma...')
         for f_img in list_img:
             img = cv2.imread(f_img)
             for i in range(1,num+1):
+                high=True
+                if random.randint(0,1)==1:
+                    high=False
                 # ガンマ変換ルックアップテーブル
                 LUT = np.arange(256, dtype = 'uint8')
-                tmp = 1 + 0.5*i
+                tmp=1
+                if high:
+                    tmp = random.uniform(1,upper)
+                else:
+                    tmp=random.uniform(lower,1)
                 for j in range(256):
                     LUT[j] = 255 * pow(float(j)/255, 1.0/tmp)
                 # 代入
                 gamma_img = cv2.LUT(img, LUT)
                 cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_gmh.png'), gamma_img)
-        print('Done.')
-
-    # ガンマ変換(1>γ) ダークサイドへ堕ちる 可変パラメータはtmpの0.05
-    # γ>0でなくてはならないので、デフォルトでは(0<=num<20)
-    def gamma_low(self,dir_img,dir_save,file_format=False,num=5):
-        self.make_dir(dir_save,file_format)
-        list_img = sorted(glob.glob(dir_img+'/*'))
-        print('running gamma_low...')
-        for f_img in list_img:
-            img = cv2.imread(f_img)
-            for i in range(1,num+1):
-                # ガンマ変換ルックアップテーブル
-                LUT = np.arange(256, dtype = 'uint8')
-                tmp = 1 - 0.5*i
-                for j in range(256):
-                    LUT[j] = 255 * pow(float(j)/255, 1.0/tmp)
-                # 代入
-                gamma_img = cv2.LUT(img, LUT)
-                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_gml.png'), gamma_img)
         print('Done.')
 
     def blur(self,dir_img,dir_save,file_format=False,x=3,y=3):
@@ -243,10 +246,10 @@ class PrepareDataset(object):
                 cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_blr.png'), blur_img)
         print('Done.')
 
-    def affine_left(self,dir_img,dir_save,file_format=False,num=5):
+    def affine(self,dir_img,dir_save,file_format=False,num=5,max_angle=10):
         self.make_dir(dir_save,file_format)
         list_img = sorted(glob.glob(dir_img+'/*'))
-        print('running affine_left...')
+        print('running affine...')
         for f_img in list_img:
             img = cv2.imread(f_img)
             for i in range(1,num+1):
@@ -255,34 +258,14 @@ class PrepareDataset(object):
                 # 回転の中心座標（画像の中心）
                 center = tuple([int(size[0]/2), int(size[1]/2)])
                 # 回転角度・拡大率
-                angle, scale = 5*i, 1+0.2*i
+                angle=random.randint(-max_angle,max_angle)
+                scale = 1+0.030*abs(angle)
                 # 回転行列の計算
                 R = cv2.getRotationMatrix2D(center, angle, scale)
                 # アフィン変換
                 affine_img = cv2.warpAffine(img, R, size, flags=cv2.INTER_CUBIC)
                 # 結果を出力
                 cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_afl.png'), affine_img)
-        print('Done.')
-
-    def affine_right(self,dir_img,dir_save,file_format=False,num=5):
-        self.make_dir(dir_save,file_format)
-        list_img = sorted(glob.glob(dir_img+'/*'))
-        print('running affine_right...')
-        for f_img in list_img:
-            img = cv2.imread(f_img)
-            for i in range(1,num+1):
-                # 画像のサイズ取得
-                size = tuple([img.shape[1], img.shape[0]])
-                # 回転の中心座標（画像の中心）
-                center = tuple([int(size[0]/2), int(size[1]/2)])
-                # 回転角度・拡大率
-                angle, scale = -5*i, 1+0.2*i
-                # 回転行列の計算
-                R = cv2.getRotationMatrix2D(center, angle, scale)
-                # アフィン変換
-                affine_img = cv2.warpAffine(img, R, size, flags=cv2.INTER_CUBIC)
-                # 結果を出力
-                cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_afr.png'), affine_img)
         print('Done.')
 
     def enlarging(self,dir_img,dir_save,file_format=False,num=3):
