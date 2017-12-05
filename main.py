@@ -60,12 +60,11 @@ class main(object):
             })
         img_path, labels = tf.train.shuffle_batch(
             [features['image'], tf.cast(features['label'], tf.int32)],
-            batch_size=BATCH_SIZE,capacity=22830+3*BATCH_SIZE,min_after_dequeue=22830
+            batch_size=BATCH_SIZE,capacity=234730+3*BATCH_SIZE,min_after_dequeue=234730
         )
         def image_from_path(path):
             png_bytes = tf.read_file(path)
             image = tf.image.decode_png(png_bytes, channels=3)
-            image.set_shape([IMAGE_SIZE,IMAGE_SIZE,3])
             return image
         images = tf.map_fn(image_from_path,img_path,dtype='uint8')
 
@@ -273,7 +272,7 @@ class main(object):
             #スレッドを利用して並列処理
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
-            for i in range(20000):
+            for i in range(10000):
                 #バッチサイズ分のデータを格納
                 batch = sess.run([img,lab])
                 if (i+1) % 100 == 0:
@@ -327,7 +326,7 @@ class main(object):
             #スレッドを利用して並列処理
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
-            for i in range(200):
+            for i in range(75):
                 #ckptファイルからパラメータ情報を復元
                 saver.restore(sess, "save_files/model.ckpt-"+str((i+1)*100))
                 #バッチサイズ分のデータを格納
@@ -368,7 +367,7 @@ class main(object):
                 sess.run(tf.global_variables_initializer())
 
                 #for i in range(200):
-                saver.restore(sess,"save_files/model.ckpt-20000")
+                saver.restore(sess,"save_files/model.ckpt-10000")
                 result = np.round(sess.run(y_,feed_dict={x: image,keep_prob: 1.0}),3)
                 stationnum = sess.run(tf.argmax(result,1))
                 print('station {0} ,\n station number is {1}'.format(result,stationnum))
@@ -417,7 +416,7 @@ class main(object):
                 saver = tf.train.Saver()
                 with tf.Session() as sess:
                     sess.run(tf.global_variables_initializer())
-                    saver.restore(sess,"save_files/model.ckpt-20000")
+                    saver.restore(sess,"save_files/model.ckpt-10000")
 
                     for img in imglist:
 
