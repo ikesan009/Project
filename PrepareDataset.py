@@ -1,4 +1,10 @@
 #conding:utf-8
+import http.client
+import json
+import re
+import requests
+import math
+import urllib
 import os
 import cv2
 import glob
@@ -97,7 +103,7 @@ class PrepareDataset(object):
         print('Done.')
 
     def detect_edge(self,dir_img,dir_save,minVal,maxVal,file_format=False,sobel=3):
-        self.make_dir(dir,file_format)
+        self.make_dir(dir_save,file_format)
         list_img = sorted(glob.glob(dir_img+'/*'))
         print('detecting edge...')
         for f_img in list_img:
@@ -181,7 +187,7 @@ class PrepareDataset(object):
 
     def inflation(self,dir,file_format=False):
         self.crop(dir,dir,file_format)
-        self.gamma(dir,dir,file_format)
+        #self.gamma(dir,dir,file_format)
         #self.blur(dir,dir+'_inf',file_format,1)
         self.affine(dir,dir,file_format,2)
         #self.enlarging(dir,dir+'_inf',file_format,1)
@@ -293,3 +299,86 @@ class PrepareDataset(object):
                 # 結果を出力
                 cv2.imwrite(os.path.join(dir_save,os.path.splitext(os.path.basename(f_img))[0]+str(i).zfill(2)+'_red.png'), reducing_img)
         print('Done.')
+
+    def make_img_path(self,save_dir_path, url, cnt):
+        save_img_path = os.path.join(save_dir_path, save_dir)
+        make_dir(save_img_path)
+
+        file_ext = os.path.splitext(url)[-1]
+        if file_ext.lower() in ('.jpg'):
+            full_path = os.path.join(save_img_path, '{0:03d}'.format(cnt) + file_ext.lower())
+            return full_path
+        else:
+            raise ValueError('Not applicable file extension')
+
+    def download_image(self,url, timeout=10):
+        response = requests.get(url, allow_redirects=True, timeout=timeout)
+        if response.status_code != 200:
+            error = Exception("HTTP status: " + response.status_code)
+
+        content_type = response.headers["content-type"]
+        if 'image' not in content_type:
+            error = Exception("Content-Type: " + content_type)
+            raise error
+
+        return response.content
+
+    def save_image(self,filename, image):
+        with open(filename, "wb") as fout:
+            fout.write(image)
+
+    def imgclorer(self,keyword,num_imgs_required,num_imgs_per_transaction,APIKEY):
+        #APIKEY = 'xxxxxxxxxx'
+        save_dir_path = './'
+        #keyword = '東京駅'
+        save_dir = keyword
+        make_dir(save_dir_path)
+        #num_imgs_required = 1000
+        #num_imgs_per_transaction = 25
+        offset_count = math.floor(num_imgs_required / num_imgs_per_transaction)
+
+        url_list = []
+        correspondence_table = {}
+
+        headers = {
+        # Request headers
+            'Content-Type': 'multipart/form-data',
+            'Ocp-Apim-Subscription-Key': APIKEY,
+        }
+
+        for offset in range(offset_count):
+            params = urllib.parse.urlencode({
+                'q': keyword,
+                'mkt': 'ja-JP',
+                'count': num_imgs_per_transaction,
+                'offset': offset * num_imgs_per_transaction
+            })
+
+            try:
+                conn = http.client.HTTPSConnection('api.cognitive.microsoft.com')
+                conn.request("GET", "/bing/v7.0/images/search?%s" % params, "{body}", headers)
+                response = conn.getresponse()
+                data = response.read()
+
+                conn.close()
+            except Exception as err:
+                print("[Errno {0}] {1}".format(err.errno, err.strerror))
+
+            else:
+                decode_res = data.decode('utf-8')
+                data = json.loads(decode_res)
+
+                for values in data['value']:
+                    unquoted_url = urllib.parse.unquote(values['contentUrl'])
+                    url_list.append(unquoted_url)
+
+        for i, url in enumerate(url_list):
+            try:
+                img_path = make_img_path(save_dir_path, url, i)
+                image = download_image(url)
+                save_image(img_path, image)
+                print('saved image... {}'.format(url))
+            except KeyboardInterrupt:
+                break
+            except Exception as err:
+                print("%s" % (err))
